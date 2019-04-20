@@ -6,6 +6,7 @@ import com.finalproject.automated.refactoring.tool.files.detection.service.Files
 import com.finalproject.automated.refactoring.tool.longg.methods.detection.service.LongMethodsDetection;
 import com.finalproject.automated.refactoring.tool.longg.parameter.methods.detection.service.LongParameterMethodsDetection;
 import com.finalproject.automated.refactoring.tool.methods.detection.service.MethodsDetection;
+import com.finalproject.automated.refactoring.tool.model.CodeSmellName;
 import com.finalproject.automated.refactoring.tool.model.MethodModel;
 import com.finalproject.automated.refactoring.tool.model.PropertyModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,10 +57,7 @@ public class DemoImpl implements Demo {
         System.out.println();
 
         Map<String, List<MethodModel>> methods = methodsDetection.detect(fileModels);
-        methods.forEach(this::printMethod);
-
         doPrintMethodInformation(fileModels, methods);
-
         methods.forEach(this::doSearchCodeSmells);
     }
 
@@ -79,47 +77,14 @@ public class DemoImpl implements Demo {
         doPrintSeparator();
     }
 
-    private void printMethod(String methodPath, List<MethodModel> methodModels) {
-        System.out.println("Methods for class -> " + methodPath);
+    private void doSearchCodeSmells(String filename, List<MethodModel> methodModels) {
+        System.out.println("Methods for class -> " + filename);
         System.out.println();
+
+        longMethodsDetection.detect(methodModels, LONG_METHOD_THRESHOLD);
+        longParameterMethodsDetection.detect(methodModels, LONG_PARAMETER_METHOD_THRESHOLD);
 
         methodModels.forEach(this::doPrintMethod);
-        System.out.println();
-    }
-
-    private void doSearchCodeSmells(String filename, List<MethodModel> methodModels) {
-        doPrintSeparator();
-        searchLongMethods(filename, methodModels);
-        searchLongParameterMethods(filename, methodModels);
-        doPrintSeparator();
-    }
-
-    private void searchLongMethods(String filename, List<MethodModel> methodModels) {
-        System.out.println("Long method for filename --> " + filename);
-        System.out.println();
-
-        List<MethodModel> longMethods = longMethodsDetection.detect(methodModels, LONG_METHOD_THRESHOLD);
-
-        if (!longMethods.isEmpty())
-            longMethods.forEach(this::doPrintMethod);
-        else
-            System.out.println("Doesn't has long method code smell...");
-
-        System.out.println();
-    }
-
-    private void searchLongParameterMethods(String filename, List<MethodModel> methodModels) {
-        System.out.println("Long parameter method for filename --> " + filename);
-        System.out.println();
-
-        List<MethodModel> longParameterMethods = longParameterMethodsDetection.detect(
-                methodModels, LONG_PARAMETER_METHOD_THRESHOLD);
-
-        if (!longParameterMethods.isEmpty())
-            longParameterMethods.forEach(this::doPrintMethod);
-        else
-            System.out.println("Doesn't has long parameter method code smell...");
-
         System.out.println();
     }
 
@@ -136,6 +101,7 @@ public class DemoImpl implements Demo {
 
         doPrintMethodExceptions(methodModel);
         doPrintMethodLOC(methodModel);
+        doPrintMethodCodeSmells(methodModel);
 
         System.out.println();
     }
@@ -168,9 +134,10 @@ public class DemoImpl implements Demo {
     }
 
     private void doPrintMethodExceptions(MethodModel methodModel) {
-        doPrintWithSpace("throws");
-
         Integer maxSize = methodModel.getExceptions().size() - ONE;
+
+        if (!methodModel.getExceptions().isEmpty())
+            doPrintWithSpace("throws");
 
         for (Integer index = FIRST_INDEX; index < methodModel.getExceptions().size(); index++)
             doPrintMethodException(methodModel.getExceptions().get(index), index, maxSize);
@@ -191,6 +158,21 @@ public class DemoImpl implements Demo {
 
         if (loc.isPresent())
             System.out.print(" --> LOC : " + methodModel.getLoc());
+    }
+
+    private void doPrintMethodCodeSmells(MethodModel methodModel) {
+        Integer maxSize = methodModel.getCodeSmells().size() - ONE;
+
+        if (!methodModel.getCodeSmells().isEmpty())
+            doPrintWithSpace(" --> Smells :");
+
+        for (Integer index = FIRST_INDEX; index < methodModel.getCodeSmells().size(); index++)
+            doPrintMethodCodeSmell(methodModel.getCodeSmells().get(index), index, maxSize);
+    }
+
+    private void doPrintMethodCodeSmell(CodeSmellName codeSmellName, Integer index, Integer maxSize) {
+        System.out.print(codeSmellName);
+        doPrintCommaSeparator(index, maxSize);
     }
 
     private void doPrintWithSpace(String text) {
