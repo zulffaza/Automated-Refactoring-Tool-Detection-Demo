@@ -15,7 +15,7 @@ public class DemoApplication {
         Long startTime = System.nanoTime();
 
         applicationContext.getBean(Demo.class)
-                .doLongMethodsDetection(Arrays.asList(args));
+                .doCodeSmellsDetection(Arrays.asList(args));
 
         Long endTime = System.nanoTime();
         printRunTime(startTime, endTime);
@@ -26,6 +26,7 @@ public class DemoApplication {
         double runTime = (double) (endTime - startTime);
         runTime /= 1000000000;
 
+        System.out.println();
         System.out.println("Time consume --> " + runTime + " seconds");
         System.out.println();
     }

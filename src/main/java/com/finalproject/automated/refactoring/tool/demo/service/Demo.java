@@ -12,5 +12,5 @@ import java.util.List;
 
 public interface Demo {
 
-    void doLongMethodsDetection(@NonNull List<String> paths);
+    void doCodeSmellsDetection(@NonNull List<String> paths);
 }
