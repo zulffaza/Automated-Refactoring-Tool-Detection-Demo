@@ -1,11 +1,7 @@
 package com.finalproject.automated.refactoring.tool.demo.service.implementation;
 
 import com.finalproject.automated.refactoring.tool.demo.service.Demo;
-import com.finalproject.automated.refactoring.tool.files.detection.model.FileModel;
-import com.finalproject.automated.refactoring.tool.files.detection.service.FilesDetection;
-import com.finalproject.automated.refactoring.tool.longg.methods.detection.service.LongMethodsDetection;
-import com.finalproject.automated.refactoring.tool.longg.parameter.methods.detection.service.LongParameterMethodsDetection;
-import com.finalproject.automated.refactoring.tool.methods.detection.service.MethodsDetection;
+import com.finalproject.automated.refactoring.tool.detection.service.Detection;
 import com.finalproject.automated.refactoring.tool.model.CodeSmellName;
 import com.finalproject.automated.refactoring.tool.model.MethodModel;
 import com.finalproject.automated.refactoring.tool.model.PropertyModel;
@@ -26,66 +22,59 @@ import java.util.Optional;
 public class DemoImpl implements Demo {
 
     @Autowired
-    private FilesDetection filesDetection;
-
-    @Autowired
-    private MethodsDetection methodsDetection;
-
-    @Autowired
-    private LongMethodsDetection longMethodsDetection;
-
-    @Autowired
-    private LongParameterMethodsDetection longParameterMethodsDetection;
-
-    private static final Long LONG_METHOD_THRESHOLD = 10L;
-    private static final Long LONG_PARAMETER_METHOD_THRESHOLD = 3L;
+    private Detection detection;
 
     private static final Integer FIRST_INDEX = 0;
     private static final Integer ONE = 1;
 
-    private static final String MIME_TYPE = "text/x-java-source";
-
     @Override
-    public void doLongMethodsDetection(List<String> paths) {
-        Map<String, List<FileModel>> files = filesDetection.detect(paths, MIME_TYPE);
-        files.forEach(this::doReadFiles);
+    public void doCodeSmellsDetection(List<String> paths) {
+        Map<String, Map<String, List<MethodModel>>> result = detection.detect(paths);
+        result.forEach(this::doReadResults);
     }
 
-    private void doReadFiles(String path, List<FileModel> fileModels) {
+    private void doReadResults(String path, Map<String, List<MethodModel>> result) {
         System.out.println();
         System.out.println("Class for path -> " + path);
         System.out.println();
+        System.out.println("Class size -> " + result.size());
+        System.out.println("Class has methods -> " + getClassHasMethodsCount(result));
+        System.out.println("Methods size -> " + getMethodsCount(result));
 
-        Map<String, List<MethodModel>> methods = methodsDetection.detect(fileModels);
-        doPrintMethodInformation(fileModels, methods);
-        methods.forEach(this::doSearchCodeSmells);
+        result.forEach(this::doReadResult);
     }
 
-    private void doPrintMethodInformation(List<FileModel> fileModels, Map<String, List<MethodModel>> methods) {
-        Long methodsCount = methods.values()
-                .stream()
-                .mapToLong(List::size)
+    private Long getClassHasMethodsCount(Map<String, List<MethodModel>> result) {
+        return result.values()
+                .parallelStream()
+                .filter(this::hasMethods)
+                .count();
+    }
+
+    private Integer getMethodsCount(Map<String, List<MethodModel>> result) {
+        return result.values()
+                .parallelStream()
+                .mapToInt(List::size)
                 .sum();
-
-        doPrintSeparator();
-
-        System.out.println("Class size -> " + fileModels.size());
-        System.out.println("Class has methods -> " + methods.size());
-        System.out.println("Methods size -> " + methodsCount);
-        System.out.println();
-
-        doPrintSeparator();
     }
 
-    private void doSearchCodeSmells(String filename, List<MethodModel> methodModels) {
-        System.out.println("Methods for class -> " + filename);
+    private Boolean hasMethods(List<MethodModel> methods) {
+        return methods.size() >= ONE;
+    }
+
+    private void doReadResult(String path, List<MethodModel> methods) {
+        System.out.println();
+        System.out.println("Class --> " + path);
         System.out.println();
 
-        longMethodsDetection.detect(methodModels, LONG_METHOD_THRESHOLD);
-        longParameterMethodsDetection.detect(methodModels, LONG_PARAMETER_METHOD_THRESHOLD);
+        printMethod(methods);
+    }
 
-        methodModels.forEach(this::doPrintMethod);
-        System.out.println();
+    private void printMethod(List<MethodModel> methods) {
+        if (methods.size() >= ONE)
+            methods.forEach(this::doPrintMethod);
+        else
+            System.out.println("Method --> Didn't has methods");
     }
 
     private void doPrintMethod(MethodModel methodModel) {
