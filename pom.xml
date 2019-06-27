@@ -35,6 +35,11 @@
             <artifactId>detection</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.final-project.automated-refactoring-tool</groupId>
+            <artifactId>refactoring</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -47,6 +52,14 @@
         <repository>
             <id>Automated-Refactoring-Tool-Detection</id>
             <url>https://raw.github.com/zulffaza/Automated-Refactoring-Tool-Detection/mvn-repo/</url>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>Automated-Refactoring-Tool-Refactoring</id>
+            <url>https://raw.github.com/zulffaza/Automated-Refactoring-Tool-Refactoring/mvn-repo/</url>
             <snapshots>
                 <enabled>true</enabled>
                 <updatePolicy>always</updatePolicy>

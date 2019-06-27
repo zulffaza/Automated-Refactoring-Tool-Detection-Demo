@@ -2,15 +2,16 @@ package com.finalproject.automated.refactoring.tool.demo.service.implementation;
 
 import com.finalproject.automated.refactoring.tool.demo.service.Demo;
 import com.finalproject.automated.refactoring.tool.detection.service.Detection;
-import com.finalproject.automated.refactoring.tool.model.CodeSmellName;
 import com.finalproject.automated.refactoring.tool.model.MethodModel;
-import com.finalproject.automated.refactoring.tool.model.PropertyModel;
+import com.finalproject.automated.refactoring.tool.refactoring.service.Refactoring;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * @author fazazulfikapp
@@ -24,8 +25,13 @@ public class DemoImpl implements Demo {
     @Autowired
     private Detection detection;
 
+    @Autowired
+    private Refactoring refactoring;
+
+    private static final Map<String, Map<String, List<MethodModel>>> globalRefactoringResult = new HashMap<>();
+
     private static final Integer FIRST_INDEX = 0;
-    private static final Integer ONE = 1;
+    private static final Integer SECOND_INDEX = 1;
 
     @Override
     public void doCodeSmellsDetection(List<String> paths) {
@@ -34,14 +40,66 @@ public class DemoImpl implements Demo {
     }
 
     private void doReadResults(String path, Map<String, List<MethodModel>> result) {
+        Map<String, List<MethodModel>> codeSmellMethods = getCodeSmellMethods(result);
+        printResultInfo(path, result, codeSmellMethods);
+
+        System.out.println("Do refactoring...");
+        System.out.println();
+
+        Map<String, Map<String, List<MethodModel>>> refactoringResult = refactoring.refactoring(
+                codeSmellMethods);
+
+        if (!refactoringResult.isEmpty()) {
+            System.out.println("Failed Refactoring : ");
+            System.out.println();
+
+            refactoringResult.forEach(this::printFailedRefactoringResult);
+        }
+
+        System.out.println();
+        System.out.println("Methods smells gone --> " + codeSmellMethods.values()
+                .parallelStream()
+                .flatMap(Collection::parallelStream)
+                .filter(methodModel -> methodModel.getCodeSmells().isEmpty())
+                .count());
+    }
+
+    private void printResultInfo(String path, Map<String, List<MethodModel>> result,
+                                 Map<String, List<MethodModel>> codeSmellMethods) {
         System.out.println();
         System.out.println("Class for path -> " + path);
         System.out.println();
         System.out.println("Class size -> " + result.size());
         System.out.println("Class has methods -> " + getClassHasMethodsCount(result));
         System.out.println("Methods size -> " + getMethodsCount(result));
+        System.out.println("Methods has smells -> " + getMethodsCount(codeSmellMethods));
+        System.out.println();
+    }
 
-        result.forEach(this::doReadResult);
+    private Map<String, List<MethodModel>> getCodeSmellMethods(Map<String, List<MethodModel>> result) {
+        Map<String, List<MethodModel>> filteredResult = result.entrySet()
+                .parallelStream()
+                .collect(Collectors.toMap(Map.Entry::getKey, this::filterMethodsByCodeSmell));
+
+        return filteredResult.entrySet()
+                .parallelStream()
+                .filter(this::isValueNotEmpty)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private List<MethodModel> filterMethodsByCodeSmell(Map.Entry<String, List<MethodModel>> resultEntry) {
+        return resultEntry.getValue()
+                .parallelStream()
+                .filter(this::hasCodeSmells)
+                .collect(Collectors.toList());
+    }
+
+    private Boolean hasCodeSmells(MethodModel methodModel) {
+        return !methodModel.getCodeSmells().isEmpty();
+    }
+
+    private Boolean isValueNotEmpty(Map.Entry<String, List<MethodModel>> resultEntry) {
+        return !resultEntry.getValue().isEmpty();
     }
 
     private Long getClassHasMethodsCount(Map<String, List<MethodModel>> result) {
@@ -51,6 +109,10 @@ public class DemoImpl implements Demo {
                 .count();
     }
 
+    private Boolean hasMethods(List<MethodModel> methods) {
+        return !methods.isEmpty();
+    }
+
     private Integer getMethodsCount(Map<String, List<MethodModel>> result) {
         return result.values()
                 .parallelStream()
@@ -58,118 +120,24 @@ public class DemoImpl implements Demo {
                 .sum();
     }
 
-    private Boolean hasMethods(List<MethodModel> methods) {
-        return methods.size() >= ONE;
+    private void printFailedRefactoringResult(String codeSmell, Map<String, List<MethodModel>> result) {
+        System.out.println(codeSmell + " : ");
+        result.forEach(this::printFailedResult);
     }
 
-    private void doReadResult(String path, List<MethodModel> methods) {
-        System.out.println();
-        System.out.println("Class --> " + path);
-        System.out.println();
+    private void printFailedResult(String path, List<MethodModel> methods) {
+        int maxIndex = methods.size() - SECOND_INDEX;
 
-        printMethod(methods);
-    }
+        System.out.print("--> " + path + " : ");
 
-    private void printMethod(List<MethodModel> methods) {
-        if (methods.size() >= ONE)
-            methods.forEach(this::doPrintMethod);
-        else
-            System.out.println("Method --> Didn't has methods");
-    }
+        for (int index = FIRST_INDEX; index < methods.size(); index++) {
+            System.out.print(methods.get(index).getName());
 
-    private void doPrintMethod(MethodModel methodModel) {
-        doPrintWithSpace("Method -->");
-        doPrintMethodKeywords(methodModel);
-        doPrintMethodReturnType(methodModel);
+            if (index != maxIndex) {
+                System.out.print(", ");
+            }
+        }
 
-        System.out.print(methodModel.getName());
-        System.out.print("(");
-
-        doPrintMethodParameters(methodModel);
-        doPrintWithSpace(")");
-
-        doPrintMethodExceptions(methodModel);
-        doPrintMethodLOC(methodModel);
-        doPrintMethodCodeSmells(methodModel);
-
-        System.out.println();
-    }
-
-    private void doPrintMethodKeywords(MethodModel methodModel) {
-        methodModel.getKeywords()
-                .forEach(this::doPrintWithSpace);
-    }
-
-    private void doPrintMethodReturnType(MethodModel methodModel) {
-        if (isHasReturnType(methodModel))
-            doPrintWithSpace(methodModel.getReturnType());
-    }
-
-    private Boolean isHasReturnType(MethodModel methodModel) {
-        Optional<String> returnType = Optional.ofNullable(methodModel.getReturnType());
-        return returnType.isPresent() && !returnType.get().isEmpty();
-    }
-
-    private void doPrintMethodParameters(MethodModel methodModel) {
-        Integer maxSize = methodModel.getParameters().size() - ONE;
-
-        for (Integer index = FIRST_INDEX; index < methodModel.getParameters().size(); index++)
-            doPrintMethodParameter(methodModel.getParameters().get(index), index, maxSize);
-    }
-
-    private void doPrintMethodParameter(PropertyModel propertyModel, Integer index, Integer maxSize) {
-        System.out.print(propertyModel.getType() + " " + propertyModel.getName());
-        doPrintCommaSeparator(index, maxSize);
-    }
-
-    private void doPrintMethodExceptions(MethodModel methodModel) {
-        Integer maxSize = methodModel.getExceptions().size() - ONE;
-
-        if (!methodModel.getExceptions().isEmpty())
-            doPrintWithSpace("throws");
-
-        for (Integer index = FIRST_INDEX; index < methodModel.getExceptions().size(); index++)
-            doPrintMethodException(methodModel.getExceptions().get(index), index, maxSize);
-    }
-
-    private void doPrintMethodException(String exception, Integer index, Integer maxSize) {
-        System.out.print(exception);
-        doPrintCommaSeparator(index, maxSize);
-    }
-
-    private void doPrintCommaSeparator(Integer index, Integer maxSize) {
-        if (!index.equals(maxSize))
-            doPrintWithSpace(",");
-    }
-
-    private void doPrintMethodLOC(MethodModel methodModel) {
-        Optional<Long> loc = Optional.ofNullable(methodModel.getLoc());
-
-        if (loc.isPresent())
-            System.out.print(" --> LOC : " + methodModel.getLoc());
-    }
-
-    private void doPrintMethodCodeSmells(MethodModel methodModel) {
-        Integer maxSize = methodModel.getCodeSmells().size() - ONE;
-
-        if (!methodModel.getCodeSmells().isEmpty())
-            doPrintWithSpace(" --> Smells :");
-
-        for (Integer index = FIRST_INDEX; index < methodModel.getCodeSmells().size(); index++)
-            doPrintMethodCodeSmell(methodModel.getCodeSmells().get(index), index, maxSize);
-    }
-
-    private void doPrintMethodCodeSmell(CodeSmellName codeSmellName, Integer index, Integer maxSize) {
-        System.out.print(codeSmellName);
-        doPrintCommaSeparator(index, maxSize);
-    }
-
-    private void doPrintWithSpace(String text) {
-        System.out.print(text + " ");
-    }
-
-    private void doPrintSeparator() {
-        System.out.println("------------------------------------------------------------------------");
         System.out.println();
     }
 }
