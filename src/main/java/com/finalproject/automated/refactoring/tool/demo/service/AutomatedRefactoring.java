@@ -5,12 +5,12 @@ import org.springframework.lang.NonNull;
 import java.util.List;
 
 /**
- * @author Faza Zulfika P P
+ * @author fazazulfikapp
  * @version 1.0.0
- * @since 28 June 2019
+ * @since 25 October 2018
  */
 
-public interface Demo {
+public interface AutomatedRefactoring {
 
-    void demo(@NonNull List<String> paths);
+    void automatedRefactoring(@NonNull List<String> paths);
 }
