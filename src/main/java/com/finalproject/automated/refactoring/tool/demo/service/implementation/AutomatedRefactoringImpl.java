@@ -72,6 +72,8 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
 
     private void checkNewModel(Map.Entry<String, List<MethodModel>> resultEntry) {
         resultEntry.getValue()
+                .forEach(this::removeOtherSmells);
+        resultEntry.getValue()
                 .forEach(methodModel -> removeOldModel(resultEntry.getKey(), methodModel));
     }
 
@@ -116,6 +118,15 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
 
     private Boolean isOldModel(String codeSmell, String codeSmellExpected) {
         return codeSmell.equals(codeSmellExpected);
+    }
+
+    private void removeOtherSmells(MethodModel methodModel) {
+        methodModel.getCodeSmells()
+                .removeIf(this::notLongMethod);
+    }
+
+    private Boolean notLongMethod(CodeSmellName codeSmellName) {
+        return !codeSmellName.equals(CodeSmellName.LONG_METHOD);
     }
 
     private List<MethodModel> filterMethodsByCodeSmell(Map.Entry<String, List<MethodModel>> resultEntry) {
