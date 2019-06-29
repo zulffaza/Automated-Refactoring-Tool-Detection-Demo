@@ -39,21 +39,23 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
 
     @Override
     public void automatedRefactoring(List<String> paths) {
-        Map<String, Map<String, List<MethodModel>>> result;
+        Map<String, Map<String, List<MethodModel>>> detectResult = detection.detect(paths);
+        Map<String, Map<String, List<MethodModel>>> resultChecked = checkRefactoringResults(detectResult);
 
-        do {
-            detection.detect(paths)
-                    .entrySet()
-                    .forEach(this::refactoring);
+        while (isHasSmells(resultChecked)) {
+            refactoring(detectResult, resultChecked);
 
-            result = checkRefactoringResults(paths);
-        } while (isHasSmells(result));
+            detectResult = detection.detect(paths);
+            resultChecked = checkRefactoringResults(detectResult);
+        }
     }
 
-    private void refactoring(Map.Entry<String, Map<String, List<MethodModel>>> entryResult) {
-        Map<String, List<MethodModel>> codeSmellMethods = getCodeSmellMethods(entryResult.getValue());
-        printResultInfo(entryResult.getKey(), entryResult.getValue(), codeSmellMethods);
-        doRefactoring(codeSmellMethods);
+    private Map<String, Map<String, List<MethodModel>>> checkRefactoringResults(
+            Map<String, Map<String, List<MethodModel>>> detectResult) {
+        return detectResult.entrySet()
+                .parallelStream()
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        entryResult -> getCodeSmellMethods(entryResult.getValue())));
     }
 
     private Map<String, List<MethodModel>> getCodeSmellMethods(Map<String, List<MethodModel>> result) {
@@ -131,6 +133,24 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
         return !resultEntry.getValue().isEmpty();
     }
 
+    private void refactoring(Map<String, Map<String, List<MethodModel>>> detectResult,
+                             Map<String, Map<String, List<MethodModel>>> resultChecked) {
+        for (Map.Entry<String, Map<String, List<MethodModel>>> entryResult : detectResult.entrySet()) {
+            doRefactoring(entryResult, resultChecked.get(entryResult.getKey()));
+        }
+    }
+
+    private void doRefactoring(Map.Entry<String, Map<String, List<MethodModel>>> entryResult,
+                               Map<String, List<MethodModel>> codeSmellMethods) {
+        printResultInfo(entryResult.getKey(), entryResult.getValue(), codeSmellMethods);
+        printRefactoringLoadingText();
+
+        Map<String, Map<String, List<MethodModel>>> result = refactoring.refactoring(
+                codeSmellMethods);
+        analysisRefactoringResult(result);
+        printRefactoringReport(codeSmellMethods);
+    }
+
     private void printResultInfo(String path, Map<String, List<MethodModel>> result,
                                  Map<String, List<MethodModel>> codeSmellMethods) {
         System.out.println();
@@ -159,15 +179,6 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
                 .parallelStream()
                 .mapToInt(List::size)
                 .sum();
-    }
-
-    private void doRefactoring(Map<String, List<MethodModel>> codeSmellMethods) {
-        printRefactoringLoadingText();
-
-        Map<String, Map<String, List<MethodModel>>> result = refactoring.refactoring(
-                codeSmellMethods);
-        analysisRefactoringResult(result);
-        printRefactoringReport(codeSmellMethods);
     }
 
     private void printRefactoringLoadingText() {
@@ -266,16 +277,8 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
                 .parallelStream()
                 .flatMap(Collection::parallelStream)
                 .forEach(this::removeStatements);
-        
-        globalRefactoringResult.put(codeSmell, result);
-    }
 
-    private Map<String, Map<String, List<MethodModel>>> checkRefactoringResults(List<String> paths) {
-        return detection.detect(paths)
-                .entrySet()
-                .parallelStream()
-                .collect(Collectors.toMap(Map.Entry::getKey,
-                        entryResult -> getCodeSmellMethods(entryResult.getValue())));
+        globalRefactoringResult.put(codeSmell, result);
     }
 
     private Boolean isHasSmells(Map<String, Map<String, List<MethodModel>>> result) {
