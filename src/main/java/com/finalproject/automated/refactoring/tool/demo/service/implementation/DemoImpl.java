@@ -34,6 +34,7 @@ public class DemoImpl implements Demo {
         double runTime = (double) (endTime - startTime);
         runTime /= 1000000000;
 
+        System.out.println();
         System.out.println("Time consume --> " + runTime + " seconds");
         System.out.println();
     }
