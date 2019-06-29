@@ -42,21 +42,18 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
         Map<String, Map<String, List<MethodModel>>> result;
 
         do {
-            result = detection.detect(paths)
+            detection.detect(paths)
                     .entrySet()
-                    .stream()
-                    .map(this::refactoring)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    .forEach(this::refactoring);
+
+            result = checkRefactoringResults(paths);
         } while (isHasSmells(result));
     }
 
-    private Map.Entry<String, Map<String, List<MethodModel>>> refactoring(
-            Map.Entry<String, Map<String, List<MethodModel>>> entryResult) {
+    private void refactoring(Map.Entry<String, Map<String, List<MethodModel>>> entryResult) {
         Map<String, List<MethodModel>> codeSmellMethods = getCodeSmellMethods(entryResult.getValue());
         printResultInfo(entryResult.getKey(), entryResult.getValue(), codeSmellMethods);
         doRefactoring(codeSmellMethods);
-
-        return entryResult;
     }
 
     private Map<String, List<MethodModel>> getCodeSmellMethods(Map<String, List<MethodModel>> result) {
@@ -73,17 +70,17 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
 
     private void checkNewModel(Map.Entry<String, List<MethodModel>> resultEntry) {
         resultEntry.getValue()
-                .forEach(methodModel -> removeNewModel(resultEntry.getKey(), methodModel));
+                .forEach(methodModel -> removeOldModel(resultEntry.getKey(), methodModel));
     }
 
-    private void removeNewModel(String path, MethodModel methodModel) {
+    private void removeOldModel(String path, MethodModel methodModel) {
         List<CodeSmellName> methodSmells = new ArrayList<>(methodModel.getCodeSmells());
         methodSmells.forEach(codeSmellName ->
-                removeMethodModelByCodeSmell(path, codeSmellName.getName(), methodModel));
+                removeOldModelByCodeSmell(path, codeSmellName.getName(), methodModel));
     }
 
-    private void removeMethodModelByCodeSmell(String path, String codeSmell,
-                                              MethodModel methodModel) {
+    private void removeOldModelByCodeSmell(String path, String codeSmell,
+                                           MethodModel methodModel) {
         RemoveModelVA removeModelVA = RemoveModelVA.builder()
                 .path(path)
                 .codeSmell(codeSmell)
@@ -91,18 +88,20 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
                 .build();
 
         globalRefactoringResult.computeIfPresent(codeSmell,
-                (key, result) -> removeMethodModelByPath(removeModelVA, result));
+                (key, result) -> removeOldModelByPath(removeModelVA, result));
     }
 
-    private Map<String, List<MethodModel>> removeMethodModelByPath(RemoveModelVA removeModelVA,
-                                                                   Map<String, List<MethodModel>> result) {
+    private Map<String, List<MethodModel>> removeOldModelByPath(RemoveModelVA removeModelVA,
+                                                                Map<String, List<MethodModel>> result) {
         result.computeIfPresent(removeModelVA.getPath(),
-                (key, methodModels) -> removeMethodModel(removeModelVA, methodModels));
+                (key, methodModels) -> removeOldModel(removeModelVA, methodModels));
         return result;
     }
 
-    private List<MethodModel> removeMethodModel(RemoveModelVA removeModelVA,
-                                                List<MethodModel> methodModels) {
+    private List<MethodModel> removeOldModel(RemoveModelVA removeModelVA,
+                                             List<MethodModel> methodModels) {
+        removeStatements(removeModelVA.getMethodModel());
+
         if (methodModels.contains(removeModelVA.getMethodModel())) {
             removeModelVA.getMethodModel()
                     .getCodeSmells()
@@ -226,7 +225,7 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
             result.forEach((path, methodModels) ->
                     saveFailedRefactoringResultByPath(path, methodModels, savedResult));
         } else {
-            globalRefactoringResult.put(codeSmell, result);
+            saveNewFailedRefactoringResult(codeSmell, result);
         }
     }
 
@@ -261,6 +260,24 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
         methodModel.setStatements(new ArrayList<>());
     }
 
+    private void saveNewFailedRefactoringResult(String codeSmell,
+                                                Map<String, List<MethodModel>> result) {
+        result.values()
+                .parallelStream()
+                .flatMap(Collection::parallelStream)
+                .forEach(this::removeStatements);
+        
+        globalRefactoringResult.put(codeSmell, result);
+    }
+
+    private Map<String, Map<String, List<MethodModel>>> checkRefactoringResults(List<String> paths) {
+        return detection.detect(paths)
+                .entrySet()
+                .parallelStream()
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        entryResult -> getCodeSmellMethods(entryResult.getValue())));
+    }
+
     private Boolean isHasSmells(Map<String, Map<String, List<MethodModel>>> result) {
         return result.values()
                 .parallelStream()
@@ -278,6 +295,5 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
                 .count());
         System.out.println();
         System.out.println("Refactoring complete...");
-        System.out.println();
     }
 }
