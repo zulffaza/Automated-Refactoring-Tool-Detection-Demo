@@ -204,11 +204,32 @@ public class AutomatedRefactoringImpl implements AutomatedRefactoring {
     }
 
     private void analysisFailedRefactoringResult(Map<String, Map<String, List<MethodModel>>> result) {
-        System.out.println("Failed Refactoring : ");
+        System.out.println("Failed Refactoring (" +
+                getFailedRefactoringResultMethodCount(result) + " methods) : ");
         System.out.println();
 
         result.forEach(this::saveFailedRefactoringResultBySmell);
         result.forEach(this::printFailedRefactoringResult);
+    }
+
+    private Integer getFailedRefactoringResultMethodCount(Map<String, Map<String, List<MethodModel>>> result) {
+        Map<String, List<MethodModel>> allResultMethodFailed = result.values()
+                .stream()
+                .map(Map::entrySet)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, this::mergeResultMethod));
+
+        return getMethodsCount(allResultMethodFailed);
+    }
+
+    private List<MethodModel> mergeResultMethod(List<MethodModel> methodModels,
+                                                List<MethodModel> methodModels2) {
+        methodModels.addAll(methodModels2);
+
+        return methodModels
+                .stream()
+                .distinct()
+                .collect(Collectors.toList());
     }
 
     private void printFailedRefactoringResult(String codeSmell, Map<String, List<MethodModel>> result) {
